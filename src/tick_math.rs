@@ -1,6 +1,6 @@
 //! Utility functions for Uniswap V3 tick bitmap and tick index math
 
-use alloy::primitives::{I16, U256, aliases::I24};
+use alloy::primitives::{I16, U160, U256, aliases::I24};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tick {
@@ -73,7 +73,7 @@ pub fn collect_ticks_from_map(
     ticks
 }
 
-pub fn price_from_tick(target_tick: I24) -> Option<U256> {
+pub fn price_from_tick(target_tick: I24) -> Option<U160> {
     let max_tick: I24 = I24::try_from(887272).unwrap();
     let abs_tick = target_tick.abs();
 
@@ -180,31 +180,32 @@ pub fn price_from_tick(target_tick: I24) -> Option<U256> {
         }
     }
 
-    // Uniswap does: if tick > 0, invert the Q128.128 ratio
+    // 3) invert if tick > 0
     if target_tick > I24::ZERO {
-        // type(uint256).max / ratio in Solidity
         ratio = U256::MAX / ratio;
     }
 
-    // Finally convert Q128.128 → Q128.96 by shifting 32 bits (rounding up)
-    let sqrt_price_x96 = {
-        let shifted = ratio >> 32;
-        if ratio & ((U256::ONE << 32) - U256::ONE) != U256::ZERO {
-            shifted + U256::ONE
-        } else {
-            shifted
-        }
+    // 4) shift down to Q128.96 and round up if any low bits remain
+    let shifted = ratio >> 32;
+    let sqrt_price_x96_u256 = if ratio & ((U256::ONE << 32) - U256::ONE) != U256::ZERO {
+        shifted + U256::ONE
+    } else {
+        shifted
     };
+
+    // 5) cast to U160
+    let sqrt_price_x96 =
+        U160::from(sqrt_price_x96_u256);
 
     Some(sqrt_price_x96)
 }
 /// Convert a sqrt price Q128.96 to the nearest tick index (I24)
 /// Port of Uniswap V3's TickMath.getTickAtSqrtRatio
-pub fn tick_from_price(sqrt_price_x96: U256) -> Option<I24> {
+pub fn tick_from_price(sqrt_price_x96: U160) -> Option<I24> {
     // Define bounds as U256 to avoid u128 overflow
-    let min_sqrt = U256::from(4295128739u64);
+    let min_sqrt = U160::from(4295128739u64);
     let max_sqrt =
-        U256::from_str_radix("146144670348521010328727305220398882237871023970342", 10).unwrap();
+        U160::from_str_radix("146144670348521010328727305220398882237871023970342", 10).unwrap();
 
     if sqrt_price_x96 < min_sqrt || sqrt_price_x96 >= max_sqrt {
         eprintln!("Sqrt price {} out of bounds", sqrt_price_x96);
@@ -212,7 +213,7 @@ pub fn tick_from_price(sqrt_price_x96: U256) -> Option<I24> {
     }
 
     // Convert to Q128.128 for log calculation
-    let ratio: alloy::primitives::Uint<256, 4> = sqrt_price_x96 << 32;
+    let ratio: U256 = U256::from(sqrt_price_x96) << 32;
 
     // Compute log2(ratio)
     let msb = 255 - ratio.leading_zeros();
@@ -238,7 +239,7 @@ pub fn tick_from_price(sqrt_price_x96: U256) -> Option<I24> {
     // Choose nearest
     if tick_low == tick_high {
         Some(tick_low)
-    } else if price_from_tick(tick_high).unwrap_or(U256::ZERO) <= sqrt_price_x96 {
+    } else if price_from_tick(tick_high).unwrap_or(U160::ZERO) <= sqrt_price_x96 {
         Some(tick_high)
     } else {
         Some(tick_low)

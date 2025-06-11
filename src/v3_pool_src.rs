@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use alloy::primitives::aliases::U24;
 use alloy::primitives::{Address, U160, aliases::I24};
-use alloy::primitives::{I16, U256};
+use alloy::primitives::U256;
 
-use alloy::signers::k256::sha2::digest::typenum::bit;
 use alloy_provider::{RootProvider, fillers::FillProvider};
 
 use alloy_provider::utils::JoinedRecommendedFillers;
 
+use crate::trade::Trade;
 use crate::{
     UniV3Pool::UniV3PoolInstance,
     tick_math::{self, Tick},
@@ -170,4 +170,151 @@ impl V3PoolSrc {
 
         active_ticks
     }
+
+
+    pub fn trade(&mut self, amount_in: U256, from0: bool) -> Option<Trade> {
+        // 1. Fee deduction
+        let fee_amount = amount_in
+            .checked_mul(U256::from(self.fee))?
+            .checked_div(U256::from(1_000_000))?;
+        let mut remaining = amount_in.checked_sub(fee_amount)?;
+
+        // 2. Local state
+        let mut total_out = U256::ZERO;
+
+        let mut curr_price = self.x96price;
+
+        let current_tick = tick_math::tick_from_price(self.x96price)?;
+        let mut next_tick_index = match self
+            .active_ticks
+            .binary_search_by_key(&current_tick, |t| t.tick)
+        {
+            Ok(i) => {
+                if from0 {
+                    if i + 1 >= self.active_ticks.len() {
+                        return None;
+                    } // No ticks above
+                    i + 1
+                } else {
+                    if i == 0 {
+                        return None;
+                    } // No ticks below
+                    i - 1
+                }
+            }
+            Err(i) => {
+                if from0 {
+                    if i >= self.active_ticks.len() {
+                        return None;
+                    } // No ticks above
+                    i
+                } else {
+                    if i == 0 {
+                        return None;
+                    } // No ticks below
+                    i - 1
+                }
+            }
+        };
+        let mut curr_liq = self.liquidity;
+
+        // 3. Iterate ticks
+        while remaining > U256::ZERO {
+            // get target tick price
+            let tick = self.active_ticks.get(next_tick_index as usize)?;
+            let next_price = tick_math::price_from_tick(tick.tick)?;
+            next_tick_index = if from0 {
+                next_tick_index.checked_add(1)?
+            } else {
+                next_tick_index.checked_sub(1)?
+            };
+
+            // compute max amount possible to cross this tick
+            let possible =
+                tick_math::compute_amount_possible(from0, &curr_liq, &curr_price, &next_price)?;
+
+            if remaining < possible {
+                // won't cross full tick
+                let new_price = if from0 {
+                    tick_math::compute_price_from0(&remaining, &curr_liq, &curr_price, true)?
+                } else {
+                    tick_math::compute_price_from1(&remaining, &curr_liq, &curr_price, true)?
+                };
+
+                // compute out
+                let delta = if from0 {
+                    curr_liq
+                        .checked_mul(new_price.checked_sub(curr_price)?)?
+                        .checked_div(U256::from(1u128 << 96))?
+                } else {
+                    let inv_curr = (U256::ONE << U256::from(96_u32))
+                        .checked_mul(U256::ONE << 96)?
+                        .checked_div(curr_price)?;
+                    let inv_new = (U256::ONE << U256::from(96_u32))
+                        .checked_mul(U256::ONE << 96)?
+                        .checked_div(new_price)?;
+                    curr_liq
+                        .checked_mul(inv_curr.checked_sub(inv_new)?)?
+                        .checked_div(U256::from(1u128 << 96))?
+                };
+
+                total_out = total_out.checked_add(delta)?;
+                remaining = U256::ZERO;
+                curr_price = new_price;
+                break;
+            }
+
+            // cross entire tick
+            let out_cross = if from0 {
+                curr_liq
+                    .checked_mul(next_price.checked_sub(curr_price)?)?
+                    .checked_div(U256::from(1u128 << 96))?
+            } else {
+                let num = curr_liq.checked_mul(curr_price.checked_sub(next_price)?)?;
+                num.checked_div(U256::from(1u128 << 96))?
+            };
+            total_out = total_out.checked_add(out_cross)?;
+
+            // update liquidity
+            if let Some(net) = tick.liquidity_net {
+                curr_liq = if from0 {
+                    if net > 0 {
+                        curr_liq.saturating_add(U256::from(net))
+                    } else {
+                        curr_liq.saturating_sub(U256::from(-net))
+                    }
+                } else {
+                    if net < 0 {
+                        curr_liq.saturating_add(U256::from(net))
+                    } else {
+                        curr_liq.saturating_sub(U256::from(net))
+                    }
+                };
+            }
+
+            // move pointer
+            curr_price = next_price;
+            remaining = remaining.checked_sub(possible)?;
+        }
+
+        self.liquidity = curr_liq;
+        self.x96price = curr_price;
+
+        // build Trade
+        Some(Trade {
+            dex: self.exchange.clone(),
+            version: self.version.clone(),
+            fee: self.fee,
+            token0: self.token0,
+            token1: self.token1,
+            pool: self.address,
+            from0,
+            amount_in,
+            amount_out: total_out,
+            price_impact: fee_amount,
+            fee_amount,
+            raw_price: total_out,
+        })
+    }
+
 }
