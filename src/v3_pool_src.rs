@@ -75,7 +75,8 @@ impl V3PoolSrc {
             V3PoolSrc::right_ticks(bitmap, start, tick_spacing, range, contract).await;
         let mut l: Vec<I24> =
             V3PoolSrc::left_ticks(bitmap, start, tick_spacing, range, contract).await;
-
+        
+        l.reverse();
         l.append(&mut r);
 
         let mut ticks = Vec::new();
@@ -147,7 +148,7 @@ impl V3PoolSrc {
 
         while active_ticks.len() < range {
             if let Some(c_word) = bitmap.get(&current_word_idx) {
-                if let Some(v) = tick_math::next_right(&*c_word, &current_pos.low_i16()) {
+                if let Some(v) = tick_math::next_left(&*c_word, &current_pos.low_i16()) {
                     let tick = (I24::try_from(current_word_global).unwrap()
                         + I24::try_from(v).unwrap())
                         * tick_spacing;

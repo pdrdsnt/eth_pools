@@ -37,7 +37,13 @@ mod tests {
         )
         .await;
         
-        println!("pool: {:?}", v3.unwrap()); 
+        let new_v3 = v3.unwrap();
+        let mut f = false;
+        for tick in new_v3.active_ticks {
+            
+            let c = if (tick.tick >= new_v3.current_tick && !f) { f = true; "<<<<" } else {""};
+            println!("{} - {:?} {}", tick.tick, tick.liquidity_net, c);
+        } 
 
     }
 }
