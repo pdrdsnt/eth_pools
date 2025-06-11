@@ -1,0 +1,13 @@
+[package]
+name = "eth_pools"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy = { version = "1.0.9"}
+alloy-provider = "1.0.9"
+anyhow = "1.0.98"
+tokio = "1.45.1"
+
+[dev-dependencies]
+async-std = { version = "1.12", features = ["attributes"] }
