@@ -1,4 +1,6 @@
-use alloy::primitives::{aliases::I24, Address, U256};
+use std::ops::DerefMut;
+
+use alloy::primitives::{Address, U256, aliases::I24};
 
 use crate::{
     tick_math::{self, Tick},
@@ -150,20 +152,21 @@ impl V3PoolSim {
             total_out = total_out.checked_add(out_cross)?;
 
             // update liquidity
-            let net = tick.liquidity_net;
-            curr_liq = if from0 {
-                if net > 0 {
-                    curr_liq.saturating_add(U256::from(net))
+            if let Some(net) = tick.liquidity_net {
+                curr_liq = if from0 {
+                    if net > 0 {
+                        curr_liq.saturating_add(U256::from(net))
+                    } else {
+                        curr_liq.saturating_sub(U256::from(-net))
+                    }
                 } else {
-                    curr_liq.saturating_sub(U256::from(-net))
-                }
-            } else {
-                if net < 0 {
-                    curr_liq.saturating_add(U256::from(net))
-                } else {
-                    curr_liq.saturating_sub(U256::from(net))
-                }
-            };
+                    if net < 0 {
+                        curr_liq.saturating_add(U256::from(net))
+                    } else {
+                        curr_liq.saturating_sub(U256::from(net))
+                    }
+                };
+            }
 
             // move pointer
             curr_price = next_price;
@@ -190,7 +193,7 @@ impl V3PoolSim {
         })
     }
 
-    pub fn mint(&mut self, tick_lower:I24, tick_upper:I24, amount: i128) {
+    pub fn mint(&mut self, tick_lower: I24, tick_upper: I24, amount: i128) {
         self.update_tick_liquidity(tick_lower, amount);
         self.update_tick_liquidity(tick_upper, -amount);
 
@@ -200,7 +203,7 @@ impl V3PoolSim {
         }
     }
 
-    pub fn burn(&mut self, tick_lower:I24, tick_upper:I24, amount: i128) {
+    pub fn burn(&mut self, tick_lower: I24, tick_upper: I24, amount: i128) {
         self.update_tick_liquidity(tick_lower, -amount);
 
         self.update_tick_liquidity(tick_upper, amount);
@@ -227,10 +230,13 @@ impl V3PoolSim {
         match self.active_ticks.binary_search_by_key(&tick, |t| t.tick) {
             Ok(pos) => {
                 // found existing tick
-                let tick_ref = &mut self.active_ticks[pos];
-                tick_ref.liquidity_net += amount;
-                if tick_ref.liquidity_net == 0 {
-                    self.active_ticks.remove(pos);
+                let tick_ref: &mut Tick = &mut self.active_ticks[pos];
+                if let Some(liq) = tick_ref.liquidity_net.as_mut() {
+                    *liq += amount;
+
+                    if *liq == i128::from(0) {
+                        self.active_ticks.remove(pos);
+                    }
                 }
             }
             Err(pos) => {
@@ -239,7 +245,7 @@ impl V3PoolSim {
                     pos,
                     Tick {
                         tick,
-                        liquidity_net: amount,
+                        liquidity_net: Some(amount),
                     },
                 );
             }

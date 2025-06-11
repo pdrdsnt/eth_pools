@@ -5,7 +5,7 @@ use alloy::primitives::{I16, U256, aliases::I24};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tick {
     pub tick: I24,
-    pub liquidity_net: i128,
+    pub liquidity_net: Option<i128>,
 }
 
 /// Normalize a tick by tick spacing (division towards zero)

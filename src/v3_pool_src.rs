@@ -37,17 +37,18 @@ impl V3PoolSrc {
         provider: Rpc,
     ) -> Result<Self, anyhow::Error> {
         let contract = UniV3PoolInstance::new(address, provider);
-
+        
         let tick_spacing = contract.tickSpacing().call().await?;
         let slot0_return = contract.slot0().call().await?;
+       
         let liquidity = contract.liquidity().call().await?;
         let fee= contract.fee().call().await?;
         let token0 = contract.token0().call().await?;
         let token1 = contract.token1().call().await?;
-
+        
         let mut bitmap: HashMap<i16, U256> = HashMap::new();
         let mut current_tick = slot0_return.tick.clone();
-        let ticks = V3PoolSrc::update_ticks(&mut bitmap, current_tick, tick_spacing, 30, &contract).await;
+        let ticks = V3PoolSrc::update_ticks(&mut bitmap, current_tick, tick_spacing,5, &contract).await;
         Ok(Self {
             address,
             token0,
@@ -80,9 +81,9 @@ impl V3PoolSrc {
         let mut ticks = Vec::new();
         for tick in l {
             if let Ok(fut) = contract.ticks(tick).call().await {
-                ticks.push(Tick{tick: tick, liquidity_net: fut.liquidityNet});
+                ticks.push(Tick{tick: tick, liquidity_net: Some(fut.liquidityNet)});
             }else {
-                println!("failed to fetch tick {}", tick)
+                ticks.push(Tick{tick: tick, liquidity_net: None});
             }
         }
 

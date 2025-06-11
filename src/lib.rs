@@ -37,7 +37,7 @@ mod tests {
         )
         .await;
         
-        println!("pool: {:?}", v3.unwrap());
+        println!("pool: {:?}", v3.unwrap()); 
 
     }
 }
