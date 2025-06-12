@@ -1,6 +1,6 @@
 //! Utility functions for Uniswap V3 tick bitmap and tick index math
 
-use alloy::primitives::{I16, U160, U256, aliases::I24};
+use alloy::primitives::{U160, U256, aliases::I24};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tick {
@@ -248,63 +248,49 @@ pub fn tick_from_price(sqrt_price_x96: U160) -> Option<I24> {
 
 pub fn compute_amount_possible(
     from0: bool,
-    available_liquidity: &U256,
-    current_sqrt_price: &U256,
-    next_sqrt_price: &U256,
+    available_liquidity: &u128,
+    current_sqrt_price: &U160,
+    next_sqrt_price: &U160,
 ) -> Option<U256> {
-    let Q96: U256 = U256::from(1) << 96;
-    // println!("Q96 = {}", Q96);
+    // Q96 = 2^96
+    let q96 = U256::ONE << 96;
+
+    // promote everything to U256
+    let liq: U256 = U256::from(*available_liquidity);
+    let cur: U256 = U256::from(*current_sqrt_price);
+    let nxt: U256 = U256::from(*next_sqrt_price);
 
     if from0 {
-        // Token0 -> Token1: Δx = (L * Δ√P * Q96) / (sqrtP_current * sqrtP_next)
-        let diff = next_sqrt_price.checked_sub(*current_sqrt_price)?;
-        // println!("diff (next_sqrt_price - current_sqrt_price) = {}", diff);
-
+        // Δx = L·(√P_next − √P_curr)·Q96 ÷ (√P_curr·√P_next)
+        let diff = nxt.checked_sub(cur)?;
         if diff.is_zero() {
-            // println!("diff is zero; returning None");
             return None;
         }
 
-        let denom = current_sqrt_price.checked_mul(*next_sqrt_price)?;
-        // println!("denom (current_sqrt_price * next_sqrt_price) = {}", denom);
+        // numerator = L * diff * Q96
+        let numerator = liq
+            .checked_mul(diff)?
+            .checked_mul(q96)?;
 
-        // Multiply L * Δ√P first.
-        let liquidity_mul_diff = available_liquidity.checked_mul(diff)?;
-        // println!("available_liquidity * diff = {}", liquidity_mul_diff);
-
-        // Divide by denom.
-        let scaled = liquidity_mul_diff.checked_div(denom >> 96)?;
-        // println!("scaled ( (L * diff) / denom >> 96 ) = {}", scaled);
-
-        // Multiply by Q96.
-        let result = scaled;
-        // println!("result (scaled * Q96) = {}", result);
-
-        Some(result)
+        // denominator = cur * nxt
+        let denominator = cur.checked_mul(nxt)?;
+        Some(numerator.checked_div(denominator)?)
     } else {
-        // Token1 -> Token0: Δy = (L * Δ√P) / Q96
-        let diff = current_sqrt_price.checked_sub(*next_sqrt_price)?;
-        // println!("diff (current_sqrt_price - next_sqrt_price) = {}", diff);
-
+        // Δy = L·(√P_curr − √P_next) ÷ Q96
+        let diff = cur.checked_sub(nxt)?;
         if diff.is_zero() {
-            // println!("diff is zero; returning None");
             return None;
         }
 
-        let liquidity_mul_diff = available_liquidity.checked_mul(diff)?;
-        // println!("available_liquidity * diff = {}", liquidity_mul_diff);
-
-        let result = liquidity_mul_diff.checked_div(Q96)?;
-        // println!("result ( (L * diff) / Q96 ) = {}", result);
-
-        Some(result)
+        let numerator = liq.checked_mul(diff)?;
+        Some(numerator.checked_div(q96)?)
     }
 }
 
 pub fn compute_price_from0(
     amount: &U256,
-    available_liquidity: &U256,
-    current_sqrt_price: &U256,
+    available_liquidity: &u128,
+    current_sqrt_price: &U160,
     add: bool,
 ) -> Option<U256> {
     // Debug prints (optional)
@@ -314,11 +300,11 @@ pub fn compute_price_from0(
     // println!("  √P (current_sqrt_price): {}", current_sqrt_price);
 
     // Step 1: Compute L << 96 (Q96L)
-    let Q96L = *available_liquidity << (U256::from(96_u32));
+    let q96L = U160::from(*available_liquidity) << (U160::from(96_u32));
     // println!("Q96L (L << 96): {}", Q96L);
 
     // Step 2: Compute (L << 96) / √P (scaled_liquidity)
-    let scaled_liquidity = Q96L.checked_div(*current_sqrt_price)?;
+    let scaled_liquidity = U256::from(q96L.checked_div(*current_sqrt_price)?);
     // println!("scaled_liquidity (Q96L / √P): {}", scaled_liquidity);
 
     // Step 3: Compute denominator = scaled_liquidity ± Δx
@@ -338,8 +324,8 @@ pub fn compute_price_from0(
 
 pub fn compute_price_from1(
     amount: &U256,
-    available_liquidity: &U256,
-    current_sqrt_price: &U256,
+    available_liquidity: &u128,
+    current_sqrt_price: &U160,
     add: bool,
 ) -> Option<U256> {
     // For token1, calculate the difference as (current - next)
