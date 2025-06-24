@@ -2,7 +2,6 @@ use alloy::primitives::{Address, U256};
 
 use crate::trade::Trade;
 
-
 #[derive(Debug,)]
 pub struct V2PoolSim {
     pub address: Address,
@@ -41,9 +40,9 @@ impl V2PoolSim {
         // 2. Get reserves in proper decimal scale
         let (reserve_in, reserve_out,) = match from0 {
             true => (self.reserves0, self.reserves1,),
+
             false => (self.reserves1, self.reserves0,),
         };
-
         // 3. Apply V2 fee calculation correctly (0.3% fee)
         let amount_in_less_fee = amount_in.checked_mul(U256::from(997,),)?.checked_div(U256::from(1000,),)?;
         let numerator = amount_in_less_fee.checked_mul(reserve_out,)?;

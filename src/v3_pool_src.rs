@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use alloy::primitives::U256;
 use alloy::primitives::aliases::U24;
 use alloy::primitives::{Address, U160, aliases::I24};
-use alloy::primitives::U256;
 
 use alloy_provider::{RootProvider, fillers::FillProvider};
 
@@ -13,7 +13,7 @@ use crate::{
     UniV3Pool::UniV3PoolInstance,
     tick_math::{self, Tick},
 };
-
+        
 type Rpc = FillProvider<JoinedRecommendedFillers, RootProvider>;
 type PoolContract = UniV3PoolInstance<Rpc>;
 
@@ -27,28 +27,26 @@ pub struct V3PoolSrc {
     pub active_ticks: Vec<Tick>,
     pub bitmap: HashMap<i16, U256>,
     pub tick_spacing: I24,
-    pub liquidity: u128,
-    pub x96price: U160,
+    pub liquidity: U256,
+    pub x96price: U256,
     pub contract: PoolContract,
 }
 impl V3PoolSrc {
-    pub async fn new(
-        address: Address,
-        provider: Rpc,
-    ) -> Result<Self, anyhow::Error> {
+    pub async fn new(address: Address, provider: Rpc) -> Result<Self, anyhow::Error> {
         let contract = UniV3PoolInstance::new(address, provider);
-        
+
         let tick_spacing = contract.tickSpacing().call().await?;
         let slot0_return = contract.slot0().call().await?;
-       
-        let liquidity = contract.liquidity().call().await?;
-        let fee= contract.fee().call().await?;
+
+        let liquidity = U256::from(contract.liquidity().call().await?);
+        let fee = contract.fee().call().await?;
         let token0 = contract.token0().call().await?;
         let token1 = contract.token1().call().await?;
-        
+        let x96price = U256::from(slot0_return.sqrtPriceX96);
         let mut bitmap: HashMap<i16, U256> = HashMap::new();
-        let mut current_tick = slot0_return.tick.clone();
-        let ticks = V3PoolSrc::update_ticks(&mut bitmap, current_tick, tick_spacing,5, &contract).await;
+        let current_tick = slot0_return.tick.clone();
+        let ticks =
+            V3PoolSrc::update_ticks(&mut bitmap, current_tick, tick_spacing, 5, &contract).await;
         Ok(Self {
             address,
             token0,
@@ -58,8 +56,8 @@ impl V3PoolSrc {
             active_ticks: ticks,
             bitmap: bitmap,
             tick_spacing: tick_spacing,
-            liquidity: liquidity,
-            x96price: slot0_return.sqrtPriceX96,
+            liquidity,
+            x96price,
             contract,
         })
     }
@@ -70,21 +68,27 @@ impl V3PoolSrc {
         tick_spacing: I24,
         range: usize,
         contract: &PoolContract,
-    ) -> Vec<Tick>{
+    ) -> Vec<Tick> {
         let mut r: Vec<I24> =
             V3PoolSrc::right_ticks(bitmap, start, tick_spacing, range, contract).await;
         let mut l: Vec<I24> =
             V3PoolSrc::left_ticks(bitmap, start, tick_spacing, range, contract).await;
-        
+
         l.reverse();
         l.append(&mut r);
 
         let mut ticks = Vec::new();
         for tick in l {
             if let Ok(fut) = contract.ticks(tick).call().await {
-                ticks.push(Tick{tick: tick, liquidity_net: Some(fut.liquidityNet)});
-            }else {
-                ticks.push(Tick{tick: tick, liquidity_net: None});
+                ticks.push(Tick {
+                    tick: tick,
+                    liquidity_net: Some(fut.liquidityNet),
+                });
+            } else {
+                ticks.push(Tick {
+                    tick: tick,
+                    liquidity_net: None,
+                });
             }
         }
 
@@ -131,7 +135,7 @@ impl V3PoolSrc {
         active_ticks
     }
 
-    pub async fn left_ticks(
+    pub async fn left_ticks( 
         bitmap: &mut HashMap<i16, U256>,
         start: I24,
         tick_spacing: I24,
@@ -170,7 +174,6 @@ impl V3PoolSrc {
 
         active_ticks
     }
-
 
     pub fn trade(&mut self, amount_in: U256, from0: bool) -> Option<Trade> {
         // 1. Fee deduction
@@ -241,26 +244,31 @@ impl V3PoolSrc {
                     tick_math::compute_price_from1(&remaining, &curr_liq, &curr_price, true)?
                 };
 
+                let u256_curr_price = U256::from(curr_price);
+
+                let u256_curr_liq = U256::from(curr_liq);
+
+                let price_diff = new_price.checked_sub(u256_curr_price)?;
                 // compute out
                 let delta = if from0 {
-                    curr_liq
-                        .checked_mul(new_price.checked_sub(curr_price)?)?
-                        .checked_div(U256::from(1u128 << 96))?
+                    u256_curr_liq
+                        .checked_mul(price_diff)?
+                        .checked_div(U256::ONE << 96)?
                 } else {
                     let inv_curr = (U256::ONE << U256::from(96_u32))
                         .checked_mul(U256::ONE << 96)?
-                        .checked_div(curr_price)?;
+                        .checked_div(u256_curr_price)?;
                     let inv_new = (U256::ONE << U256::from(96_u32))
                         .checked_mul(U256::ONE << 96)?
                         .checked_div(new_price)?;
-                    curr_liq
+                    u256_curr_liq
                         .checked_mul(inv_curr.checked_sub(inv_new)?)?
                         .checked_div(U256::from(1u128 << 96))?
                 };
 
                 total_out = total_out.checked_add(delta)?;
                 remaining = U256::ZERO;
-                curr_price = new_price;
+                curr_price = U256::from(new_price);
                 break;
             }
 
@@ -302,19 +310,13 @@ impl V3PoolSrc {
 
         // build Trade
         Some(Trade {
-            dex: self.exchange.clone(),
-            version: self.version.clone(),
             fee: self.fee,
             token0: self.token0,
             token1: self.token1,
             pool: self.address,
             from0,
             amount_in,
-            amount_out: total_out,
-            price_impact: fee_amount,
-            fee_amount,
-            raw_price: total_out,
+            amount_out: total_out
         })
     }
-
 }

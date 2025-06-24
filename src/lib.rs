@@ -1,6 +1,3 @@
-mod v2_pool_sim;
-mod v3_pool_sim;
-
 mod v3_pool_src;
 
 include!("abis/uni_v3_abis.rs");
@@ -17,10 +14,8 @@ pub fn add(left: u64, right: u64) -> u64 {
 mod tests {
     use std::str::FromStr;
 
-    use alloy::{primitives::Address, transports::http::reqwest::Url};
+    use alloy::{primitives::{Address, U256}, transports::http::reqwest::Url};
     use alloy_provider::ProviderBuilder;
-
-    use crate::v3_pool_sim::V3PoolSim;
 
     use super::*;
 
@@ -37,13 +32,20 @@ mod tests {
         )
         .await;
         
-        let new_v3 = v3.unwrap();
+        let mut new_v3 = v3.unwrap();
         let mut f = false;
-        for tick in new_v3.active_ticks {
-            
-            let c = if (tick.tick >= new_v3.current_tick && !f) { f = true; "<<<<" } else {""};
+        for tick in &new_v3.active_ticks {
+            let c = if tick.tick >= new_v3.current_tick && !f { f = true; "<<<<" } else {""};
             println!("{} - {:?} {}", tick.tick, tick.liquidity_net, c);
-        } 
+        }
+
+        if let Some(sim) = new_v3.trade(U256::ONE << 12, true) {
+            println!("simulating trade: {:?} ", sim);
+        }else {
+            println!("simulation failed");
+        }
+
+        
 
     }
 }
