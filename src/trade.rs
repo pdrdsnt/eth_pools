@@ -1,6 +1,6 @@
-use alloy::primitives::{aliases::U24, Address, U256};
+use alloy::primitives::{Address, U256, aliases::U24};
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord,)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Trade {
     pub fee: U24,
     pub token0: Address,

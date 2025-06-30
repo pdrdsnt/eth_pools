@@ -1,6 +1,6 @@
-//! Utility functions for Uniswap V3 tick bitmap and tick index math
+//////////! Utility functions for Uniswap V3 tick bitmap and tick index math
 
-use alloy::primitives::{I256, U256, aliases::I24};
+use alloy::primitives::{I256, U256, U512, aliases::I24};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tick {
@@ -74,6 +74,7 @@ pub fn collect_ticks_from_map(
 }
 
 pub fn price_from_tick(target_tick: I24) -> Option<U256> {
+    println!("calculating prince fomr tick: {}", target_tick);
     let max_tick: I24 = I24::try_from(887272).unwrap();
     let abs_tick = target_tick.abs();
 
@@ -86,114 +87,114 @@ pub fn price_from_tick(target_tick: I24) -> Option<U256> {
     }
 
     let mut sqrt_price_x128 = if (abs_tick & I24::ONE) != I24::ZERO {
-        U256::from_str_radix("255706422905421325395407485534392863200", 10).unwrap()
+        U512::from_str_radix("fffcb933bd6fad37aa2d162d1a594001", 16).unwrap()
     } else {
-        U256::from(1) << 128
+        U512::from(1) << 128
     };
 
     let magic_numbers = [
+        // mask 0x1  (handled in your `sqrt_price_x128 = …` init)
         (
-            I24::try_from(0x80000).unwrap(),
-            U256::from_str_radix("fffcb933bd6fad37aa2d162d1a594001", 16).unwrap(),
+            0x2,
+            U512::from_str_radix("fff97272373d413259a46990580e213a", 16).unwrap(),
         ),
         (
-            I24::try_from(0x40000).unwrap(),
-            U256::from_str_radix("fff97272373d413259a46990580e213a", 16).unwrap(),
+            0x4,
+            U512::from_str_radix("fff2e50f5f656932ef12357cf3c7fdcc", 16).unwrap(),
         ),
         (
-            I24::try_from(0x20000).unwrap(),
-            U256::from_str_radix("fff2e50f5f656932ef12357cf3c7fdcc", 16).unwrap(),
+            0x8,
+            U512::from_str_radix("ffe5caca7e10e4e61c3624eaa0941cd0", 16).unwrap(),
         ),
         (
-            I24::try_from(0x10000).unwrap(),
-            U256::from_str_radix("ffe5caca7e10e4e61c3624eaa0941cd0", 16).unwrap(),
+            0x10,
+            U512::from_str_radix("ffcb9843d60f6159c9db58835c926644", 16).unwrap(),
         ),
         (
-            I24::try_from(0x8000).unwrap(),
-            U256::from_str_radix("ffcb9843d60f6159c9db58835c926644", 16).unwrap(),
+            0x20,
+            U512::from_str_radix("ff973b41fa98c081472e6896dfb254c0", 16).unwrap(),
         ),
         (
-            I24::try_from(0x4000).unwrap(),
-            U256::from_str_radix("ff973b41fa98c081472e6896dfb254c0", 16).unwrap(),
+            0x40,
+            U512::from_str_radix("ff2ea16466c96a3843ec78b326b52861", 16).unwrap(),
         ),
         (
-            I24::try_from(0x2000).unwrap(),
-            U256::from_str_radix("ff2ea16466c96a3843ec78b326b52861", 16).unwrap(),
+            0x80,
+            U512::from_str_radix("fe5dee046a99a2a811c461f1969c3053", 16).unwrap(),
         ),
         (
-            I24::try_from(0x1000).unwrap(),
-            U256::from_str_radix("fe5dee046a99a2a811c461f1969c3053", 16).unwrap(),
+            0x100,
+            U512::from_str_radix("fcbe86c7900a88aedcffc83b479aa3a4", 16).unwrap(),
         ),
         (
-            I24::try_from(0x800).unwrap(),
-            U256::from_str_radix("fcbe86c7900a88aedcffc83b479aa3a4", 16).unwrap(),
+            0x200,
+            U512::from_str_radix("f987a7253ac413176f2b074cf7815e54", 16).unwrap(),
         ),
         (
-            I24::try_from(0x400).unwrap(),
-            U256::from_str_radix("f987a7253ac413176f2b074cf7815e54", 16).unwrap(),
+            0x400,
+            U512::from_str_radix("f3392b0822b70005940c7a398e4b70f3", 16).unwrap(),
         ),
         (
-            I24::try_from(0x200).unwrap(),
-            U256::from_str_radix("f3392b0822b70005940c7a398e4b70f3", 16).unwrap(),
+            0x800,
+            U512::from_str_radix("e7159475a2c29b7443b29c7fa6e889d9", 16).unwrap(),
         ),
         (
-            I24::try_from(0x100).unwrap(),
-            U256::from_str_radix("e7159475a2c29b7443b29c7fa6e889d9", 16).unwrap(),
+            0x1000,
+            U512::from_str_radix("d097f3bdfd2022b8845ad8f792aa5825", 16).unwrap(),
         ),
         (
-            I24::try_from(0x80).unwrap(),
-            U256::from_str_radix("d097f3bdfd2022b8845ad8f792aa5825", 16).unwrap(),
+            0x2000,
+            U512::from_str_radix("a9f746462d870fdf8a65dc1f90e061e5", 16).unwrap(),
         ),
         (
-            I24::try_from(0x40).unwrap(),
-            U256::from_str_radix("a9f746462d870fdf8a65dc1f90e061e5", 16).unwrap(),
+            0x4000,
+            U512::from_str_radix("70d869a156d2a1b890bb3df62baf32f7", 16).unwrap(),
         ),
         (
-            I24::try_from(0x20).unwrap(),
-            U256::from_str_radix("70d869a156d2a1b890bb3df62baf32f7", 16).unwrap(),
+            0x8000,
+            U512::from_str_radix("31be135f97d08fd981231505542fcfa6", 16).unwrap(),
         ),
         (
-            I24::try_from(0x10).unwrap(),
-            U256::from_str_radix("31be135f97d08fd981231505542fcfa6", 16).unwrap(),
+            0x10000,
+            U512::from_str_radix("9aa508b5b7a84e1c677de54f3e99bc9", 16).unwrap(),
         ),
         (
-            I24::try_from(0x8).unwrap(),
-            U256::from_str_radix("9aa508b5b7a84e1c677de54f3e99bc9", 16).unwrap(),
+            0x20000,
+            U512::from_str_radix("5d6af8dedb81196699c329225ee604", 16).unwrap(),
         ),
         (
-            I24::try_from(0x4).unwrap(),
-            U256::from_str_radix("5d6af8dedb81196699c329225ee604", 16).unwrap(),
+            0x40000,
+            U512::from_str_radix("2216e584f5fa1ea926041bedfe98", 16).unwrap(),
         ),
         (
-            I24::try_from(0x2).unwrap(),
-            U256::from_str_radix("2216e584f5fa1ea926041bedfe98", 16).unwrap(),
-        ),
-        (
-            I24::try_from(0x1).unwrap(),
-            U256::from_str_radix("48a170391f7dc42444e8fa2", 16).unwrap(),
+            0x80000,
+            U512::from_str_radix("48a170391f7dc42444e8fa2", 16).unwrap(),
         ),
     ];
 
     // Iterate from highest mask to lowest
     for (mask, magic) in magic_numbers.iter() {
-        if abs_tick & *mask != I24::ZERO {
+        if abs_tick & I24::try_from(*mask).unwrap() != I24::ZERO {
             // wrap on overflow, then shift down
             let (wrapped, _) = sqrt_price_x128.overflowing_mul(*magic);
             sqrt_price_x128 = wrapped >> 128;
+            println!("price {}", sqrt_price_x128);
+            println!("step {}", mask);
         }
     }
+    let mut p256 = U256::from(sqrt_price_x128);
 
-    // 3) invert if tick < 0
     if target_tick > I24::ZERO {
         if sqrt_price_x128.is_zero() {
             return None; // Should ideally not happen if initial sqrt_price_x128 is non-zero
         }
-        sqrt_price_x128 = U256::MAX.checked_div(sqrt_price_x128)?;
+        p256 = U256::MAX.checked_div(p256).unwrap();
     }
 
     // 4) shift down to Q128.96 and round up if any low bits remain
-    let shifted = sqrt_price_x128 >> 32;
-    let sqrt_price_x96_u256 = if sqrt_price_x128 & ((U256::ONE << 32) - U256::ONE) != U256::ZERO {
+
+    let shifted = p256 >> 32;
+    let sqrt_price_x96_u256 = if p256 & ((U256::ONE << 32) - U256::ONE) != U256::ZERO {
         shifted + U256::ONE
     } else {
         shifted
@@ -242,23 +243,33 @@ pub fn tick_from_price(sqrt_price_x96: U256) -> Option<I24> {
     }
 
     println!("log2 after loop: {}", log2);
-    let log_sqrt10001= log2
-    * I256::try_from("255738958999603826347141").unwrap();
+    let log_sqrt10001 = log2 * I256::try_from("255738958999603826347141").unwrap();
+    I256::try_from("255738958999603826347141").unwrap();
 
     println!("log2 afet / 2^128: {}", log_sqrt10001);
-    let low = (log_sqrt10001 - I256::try_from("3402992956809132418596140100660247210").unwrap()) >> 128_u32;
-    let high =
-        (log_sqrt10001 + I256::try_from("291339464771989622907027621153398088495").unwrap()) >> 128_u32;
+    let low = (log_sqrt10001 - I256::try_from("3402992956809132418596140100660247210").unwrap())
+        >> 128_u32;
+    let high = (log_sqrt10001 + I256::try_from("291339464771989622907027621153398088495").unwrap())
+        >> 128_u32;
     println!("high {}", high);
     println!("low {}", low);
-
 
     // Calculate candidate ticks
     let tick_low: I24 = I24::from(low);
     let tick_high: I24 = I24::from(high);
 
     println!("low: {} = high: {}", tick_low, tick_high);
-    None
+
+    let result = if tick_high == tick_low {
+        tick_high
+    } else {
+        if price_from_tick(tick_high)? >= sqrt_price_x96 {
+            tick_high
+        } else {
+            tick_low
+        }
+    };
+    Some(result)
 }
 pub fn compute_amount_possible(
     from0: bool,
@@ -266,39 +277,59 @@ pub fn compute_amount_possible(
     current_sqrt_price: &U256,
     next_sqrt_price: &U256,
 ) -> Option<U256> {
+    println!("computing amount possible");
     // Q96 = 2^96
-    let q96 = U256::ONE << 96;
+    let q96: U512 = U512::ONE << 96;
 
-    // promote everything to U256
-    //let liq: U256 = U256::from(*available_liquidity);
-    //let cur: U256 = U256::from(*current_sqrt_price);
-    //let nxt: U256 = U256::from(*next_sqrt_price);
+    //promote everything to U512
+    let liq: U512 = U512::from(*available_liquidity);
+    let cur: U512 = U512::from(*current_sqrt_price);
+    let nxt: U512 = U512::from(*next_sqrt_price);
 
     if from0 {
         // Δx = L·(√P_next − √P_curr)·Q96 ÷ (√P_curr·√P_next)
-        let diff = next_sqrt_price.checked_sub(*current_sqrt_price)?;
+        println!("from 0");
+        println!("next price {}", next_sqrt_price);
+        println!("current price {}", current_sqrt_price);
+
+        let diff = nxt.checked_sub(cur)?;
+        println!("passed");
+
         if diff.is_zero() {
+            println!("diff is zezo");
             return None;
         }
 
+        println!("q 96 {}", q96);
+        println!("available liquidity {}", available_liquidity);
+        println!("diff {}", diff);
         // numerator = L * diff * Q96
-        let numerator = available_liquidity.checked_mul(diff)?.checked_mul(q96)?;
-
+        let impact = liq.checked_mul(diff)?;
+        let numerator: U512 = U512::from(impact).checked_mul(q96)?;
+        println!("numerator {}", numerator);
         // denominator = cur * nxt
-        let denominator = current_sqrt_price.checked_mul(*next_sqrt_price)?;
-        Some(numerator.checked_div(denominator)?)
+        let denominator = cur.checked_mul(nxt)?;
+        println!("denominator {}", denominator);
+
+        let res = U256::from(numerator.checked_div(denominator)?);
+
+        Some(res)
     } else {
+        println!("from 1");
         // Δy = L·(√P_curr − √P_next) ÷ Q96
-        let diff = current_sqrt_price.checked_sub(*next_sqrt_price)?;
+        let diff = cur.checked_sub(nxt)?;
+        println!("diff {}", diff);
         if diff.is_zero() {
+            println!("diff is zero");
             return None;
         }
 
-        let numerator = available_liquidity.checked_mul(diff)?;
-        Some(numerator.checked_div(q96)?)
+        let numerator = liq.checked_mul(diff)?;
+        println!("numerator {}", numerator);
+        Some(U256::from(numerator.checked_div(q96)?))
     }
 }
-
+/// Given Δy (token1 amount) and liquidity L, compute the next √P
 pub fn compute_price_from0(
     amount: &U256,
     available_liquidity: &U256,
@@ -331,8 +362,7 @@ pub fn compute_price_from0(
     // println!("new_sqrt_price (Q96L / denominator): {}", new_sqrt_price);
 
     Some(new_sqrt_price)
-}
-/// Given Δy (token1 amount) and liquidity L, compute the next √P
+} // Given Δy (token1 amount) and liquidity L, compute the next √P
 /// note: everything in Q96 fixed‐point (i.e. <<96) internally
 pub fn compute_price_from1(
     amount: &U256,
